@@ -1,6 +1,5 @@
-plugins {
-    id 'java-library'
-}
+apply plugin: 'java-library'
+apply plugin: 'com.github.dcendents.android-maven'
 
 sourceCompatibility = "8"
 targetCompatibility = "8"
