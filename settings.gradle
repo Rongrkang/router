@@ -2,4 +2,4 @@ include ':sample'
 include ':router'
 include ':router-annotations'
 include ':router-compiler'
-rootProject.name = "router"
+rootProject.name = "router-parent"
