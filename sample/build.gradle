@@ -37,6 +37,4 @@ dependencies {
     implementation project(':router')
     annotationProcessor project(':router-compiler')
 
-    implementation project(path: ':router-annotations')
-
 }
