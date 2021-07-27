@@ -25,7 +25,7 @@ public interface IRouteTree {
     class Provider {
         static IRouteTree obtain() {
             try {
-                return (IRouteTree) Class.forName("com.wts.router.RouterTree").newInstance();
+                return (IRouteTree) Class.forName("com.wts.router.RouteTree").newInstance();
             } catch (Exception ex) {
                 return null;
             }

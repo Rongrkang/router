@@ -71,10 +71,12 @@ public abstract class BaseRouter implements Comparable<BaseRouter> {
             Class<?> clazz = Class.forName(router.getAttach());
             intent.setClass(context, clazz);
             intent.putExtra(INTENT_ROUTER_HOST, router.getHost());
-            intent.putExtra(SHORTCUT_PARAM, router);
-
-            Bundle bundle = router.toParamBundle();
-            intent.putExtras(bundle);
+            if (router.getPosition().length > 0) {
+                intent.putExtra(SHORTCUT_PARAM, router);
+            } else {
+                Bundle bundle = router.toParamBundle();
+                intent.putExtras(bundle);
+            }
 
             return intent;
         } catch (ClassNotFoundException ex) {
