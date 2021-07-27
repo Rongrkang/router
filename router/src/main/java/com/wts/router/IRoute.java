@@ -8,7 +8,7 @@ import androidx.annotation.Nullable;
 
 public interface IRoute extends Cloneable, Parcelable {
 
-    String INTENT_ROUTER_HOST = "router_host";
+    String ROUTE_HOST = "route_host";
 
     String getScheme();
 

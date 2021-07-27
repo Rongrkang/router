@@ -159,6 +159,7 @@ final class RouteImpl implements IRoute, Parcelable {
     @Override
     public Bundle toParamBundle() {
         Bundle args = new Bundle();
+        args.putString(ROUTE_HOST, host);
         String param = this.param;
         try {
             Map<String, String> defParams = parserQuery(param);

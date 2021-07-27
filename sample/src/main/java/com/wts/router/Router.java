@@ -2,12 +2,13 @@ package com.wts.router;
 
 import android.content.Context;
 import android.content.Intent;
+import android.os.Bundle;
 
 import androidx.annotation.Nullable;
 
 import java.util.Map;
 
-import static com.wts.router.IRoute.INTENT_ROUTER_HOST;
+import static com.wts.router.IRoute.ROUTE_HOST;
 
 public final class Router {
 
@@ -56,17 +57,19 @@ public final class Router {
         return mManager.makeRoute(ui, params);
     }
 
-    public void addRootRouteIntent(Intent src, Intent dest) {
-        mManager.addRootRouteIntent(src, dest);
+    public void addRootRoute(Intent src, Intent dest) {
+        mManager.addRootRoute(src, dest);
+    }
+
+    public Intent getAndRemoveRootRoute(Intent intent) {
+        return mManager.getAndRemoveRootRoute(intent);
+    }
+
+    public IRoute getAndRemoveRouteParam(Bundle bundle) {
+        return mManager.getAndRemoveRouteParam(bundle);
     }
 
     public String getRouteHost(Intent intent) {
-        return intent.getStringExtra(INTENT_ROUTER_HOST);
+        return intent.getStringExtra(ROUTE_HOST);
     }
-
-    @Nullable
-    public IRoute getAndRemoveRoute(Intent intent) {
-        return mManager.getAndRemoveRoute(intent);
-    }
-
 }

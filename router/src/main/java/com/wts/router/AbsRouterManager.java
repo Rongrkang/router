@@ -7,7 +7,6 @@ import android.os.Bundle;
 import android.os.Parcelable;
 import android.text.TextUtils;
 
-import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import java.net.URI;
@@ -15,16 +14,14 @@ import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
-import static com.wts.router.BaseRouter.SHORTCUT_PARAM;
+import static com.wts.router.BaseRouter.ROUTE_PARAM;
 
 public abstract class AbsRouterManager {
 
-    final static String ROOT_SHORTCUT_PARAM = "router_root_shortcut_param";
+    final static String ROOT_SHORTCUT_PARAM = "route_root_shortcut_param";
 
     private final IRouteTree mTree = IRouteTree.Provider.obtain();
 
@@ -49,13 +46,11 @@ public abstract class AbsRouterManager {
     private boolean open(Context context, Intent intent) {
         if (intent != null) {
             Intent startIntent;
-            IRoute router = intent.getParcelableExtra(SHORTCUT_PARAM);
+            IRoute router = intent.getParcelableExtra(ROUTE_PARAM);
             if (router.getPosition().length == 0) {
-                intent.removeExtra(SHORTCUT_PARAM);
+                intent.removeExtra(ROUTE_PARAM);
                 Bundle args = router.toParamBundle();
-                if (args != null) {
-                    intent.putExtras(args);
-                }
+                intent.putExtras(args);
             }
 
             if (!router.isRoot()) {
@@ -197,12 +192,12 @@ public abstract class AbsRouterManager {
     }
 
     protected void addRouter(BaseRouter router) {
-        router.attachRouterTree(mTree);
+        router.attachRouteTree(mTree);
         mRouterScheme.add(router);
         Collections.sort(mRouterScheme);
     }
 
-    public void addRootRouteIntent(Intent src, Intent dest) {
+    public void addRootRoute(Intent src, Intent dest) {
         if (src == null || dest == null) {
             return;
         }
@@ -212,16 +207,24 @@ public abstract class AbsRouterManager {
         }
     }
 
-    @Nullable
-    public IRoute getAndRemoveRoute(Intent intent) {
+    public Intent getAndRemoveRootRoute(Intent intent) {
         if (intent == null) return null;
-        IRoute route = intent.getParcelableExtra(SHORTCUT_PARAM);
+        if (intent.hasExtra(ROOT_SHORTCUT_PARAM)) {
+            intent.removeExtra(ROOT_SHORTCUT_PARAM);
+            return intent.getParcelableExtra(ROOT_SHORTCUT_PARAM);
+        }
+        return null;
+    }
+
+    @Nullable
+    public IRoute getAndRemoveRouteParam(Bundle bundle) {
+        if (bundle == null) return null;
+        IRoute route = bundle.getParcelable(ROUTE_PARAM);
         if (route != null) {
-            intent.removeExtra(SHORTCUT_PARAM);
+            bundle.remove(ROUTE_PARAM);
         }
         return route;
     }
-
 
     private URI makeURI(String action) {
         try {

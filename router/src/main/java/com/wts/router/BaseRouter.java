@@ -2,7 +2,6 @@ package com.wts.router;
 
 import android.content.Context;
 import android.content.Intent;
-import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.ArrayMap;
 
@@ -11,27 +10,20 @@ import androidx.annotation.Nullable;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
-import java.net.URL;
 import java.net.URLDecoder;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
-import static com.wts.router.IRoute.INTENT_ROUTER_HOST;
 
 public abstract class BaseRouter implements Comparable<BaseRouter> {
 
-    private final static String TAG = "IRouterScheme";
-
-    protected final static String SHORTCUT_PARAM = "route_shortcut_param";
+    final static String ROUTE_PARAM = "route_shortcut_param";
 
     IRouteTree mTree;
 
-    final void attachRouterTree(IRouteTree tree) {
+    final void attachRouteTree(IRouteTree tree) {
         this.mTree = tree;
     }
 
-    public final IRouteTree getRouterTree() {
+    public final IRouteTree getRouteTree() {
         return mTree;
     }
 
@@ -70,15 +62,7 @@ public abstract class BaseRouter implements Comparable<BaseRouter> {
             Intent intent = new Intent();
             Class<?> clazz = Class.forName(router.getAttach());
             intent.setClass(context, clazz);
-            intent.putExtra(INTENT_ROUTER_HOST, router.getHost());
-            intent.putExtra(SHORTCUT_PARAM, router);
-//            if (router.getPosition().length > 0) {
-//                intent.putExtra(SHORTCUT_PARAM, router);
-//            } else {
-//                Bundle bundle = router.toParamBundle();
-//                intent.putExtras(bundle);
-//            }
-
+            intent.putExtra(ROUTE_PARAM, router);
             return intent;
         } catch (ClassNotFoundException ex) {
             throw new RuntimeException(ex);
