@@ -3,6 +3,7 @@ package com.wts.router;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Bundle;
 import android.os.Parcelable;
 import android.text.TextUtils;
 
@@ -48,6 +49,10 @@ public abstract class AbsRouterManager {
             IRoute router = intent.getParcelableExtra(SHORTCUT_PARAM);
             if (router.getPosition().length == 0) {
                 intent.removeExtra(SHORTCUT_PARAM);
+                Bundle args = router.toParamBundle();
+                if (args != null) {
+                    intent.putExtras(args);
+                }
             }
 
             if (!router.isRoot()) {
@@ -155,7 +160,7 @@ public abstract class AbsRouterManager {
         return makeIntent(context, url, null, token);
     }
 
-    public IRoute[] makeRouter(Class<?> ui, Map<String, Object> params) {
+    public IRoute[] makeRoute(Class<?> ui, Map<String, Object> params) {
         if (ui == null) return null;
         String className = ui.getName();
         StringBuilder builder = new StringBuilder();
@@ -200,6 +205,7 @@ public abstract class AbsRouterManager {
 
     @Nullable
     public IRoute getAndRemoveRoute(Intent intent) {
+        if (intent == null) return null;
         IRoute route = intent.getParcelableExtra(SHORTCUT_PARAM);
         if (route != null) {
             intent.removeExtra(SHORTCUT_PARAM);
