@@ -13,9 +13,12 @@ import androidx.annotation.Nullable;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static com.wts.router.BaseRouter.SHORTCUT_PARAM;
 
@@ -88,23 +91,28 @@ public abstract class AbsRouterManager {
             return null;
         }
         url = url.trim();
-        if (!checkScheme(url)) {
+        if (url.length() == 0) {
             return null;
         }
+        int si = url.indexOf("://");
+        if (si <= 0) {
+            return null;
+        }
+
         if (token == null || token.length == 0) {
             token = getDefaultToken();
         }
-        boolean checkCorrect = false;
-        for (String scheme : token) {
-            if (url.toLowerCase().startsWith((scheme + "://").toLowerCase())) {
-                checkCorrect = true;
-                break;
-            }
-        }
-        if (!checkCorrect) return null;
 
-        //step 1:让那些不能转化URI的先执行一遍如果可以反悔Intent就不继续执行了
+        String s = url.substring(0, si);
+
+        //step 1: 不在token中的都不处理
+        if (!Arrays.asList(token).contains(s)) {
+            return null;
+        }
+
+        //step 2:让那些不能转化URI的先执行一遍如果可以返回Intent就不继续执行了
         for (BaseRouter routerScheme : mRouterScheme) {
+            if (!Arrays.asList(routerScheme.getScheme()).contains(s)) continue;
             Intent intent = routerScheme.getIntent(context, url);
             if (intent != null) {
                 if (params != null) {
@@ -115,6 +123,7 @@ public abstract class AbsRouterManager {
             }
         }
 
+        //step 3: 将url转成URI再去解析
         URI uri = makeURI(url);
         if (uri == null) return null;
         for (BaseRouter routerScheme : mRouterScheme) {
@@ -221,16 +230,6 @@ public abstract class AbsRouterManager {
             e.printStackTrace();
             return null;
         }
-    }
-
-    boolean checkScheme(String url) {
-        if (TextUtils.isEmpty(url)) return false;
-        for (String scheme : getSchemes()) {
-            if (url.toLowerCase().startsWith((scheme + "://").toLowerCase())) {
-                return true;
-            }
-        }
-        return false;
     }
 
     public abstract String[] getSchemes();

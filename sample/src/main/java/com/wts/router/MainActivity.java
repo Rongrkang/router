@@ -24,8 +24,9 @@ public class MainActivity extends AppCompatActivity {
         layout.addView(button, params);
         setContentView(layout);
         button.setOnClickListener(v -> {
-            IRoute route = Router.getInstance().makeRoute(MainActivity.class, null)[0];
-            Router.getInstance().open(MainActivity.this, route);
+//            IRoute route = Router.getInstance().makeRoute(MainActivity.class, null)[0];
+//            Router.getInstance().open(MainActivity.this, route);
+            Router.getInstance().open(MainActivity.this, "wts://main");
         });
     }
 
