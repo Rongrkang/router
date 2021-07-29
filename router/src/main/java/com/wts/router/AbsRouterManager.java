@@ -197,7 +197,7 @@ public abstract class AbsRouterManager {
         Collections.sort(mRouterScheme);
     }
 
-    public void addRootRoute(Intent src, Intent dest) {
+    public void replaceTargetIntent(Intent src, Intent dest) {
         if (src == null || dest == null) {
             return;
         }
@@ -207,32 +207,48 @@ public abstract class AbsRouterManager {
         }
     }
 
-    public Intent getAndRemoveRootRoute(Intent intent) {
-        if (intent == null) return null;
-        if (intent.hasExtra(ROOT_SHORTCUT_PARAM)) {
+    public boolean hasTargetIntent(Intent intent) {
+        if (intent == null) return false;
+        return intent.hasExtra(ROOT_SHORTCUT_PARAM);
+    }
+
+    @Nullable
+    public Intent getTargetIntent(Intent intent) {
+        if (hasTargetIntent(intent)) {
             intent.removeExtra(ROOT_SHORTCUT_PARAM);
             return intent.getParcelableExtra(ROOT_SHORTCUT_PARAM);
         }
         return null;
     }
 
-    @Nullable
-    public IRoute getAndRemoveRouteParam(Bundle bundle) {
-        if (bundle == null) return null;
-        IRoute route = bundle.getParcelable(ROUTE_PARAM);
-        if (route != null) {
-            bundle.remove(ROUTE_PARAM);
-        }
-        return route;
+    public boolean hasRoute(Bundle bundle) {
+        if (bundle == null) return false;
+        return bundle.containsKey(ROUTE_PARAM);
     }
 
-    private URI makeURI(String action) {
-        try {
-            return URI.create(action);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return null;
+    public boolean hasRoute(Intent intent) {
+        if (intent == null) return false;
+        return intent.hasExtra(ROUTE_PARAM);
+    }
+
+    @Nullable
+    public IRoute getRoute(Bundle bundle) {
+        if (hasRoute(bundle)) {
+            IRoute route = bundle.getParcelable(ROUTE_PARAM);
+            bundle.remove(ROUTE_PARAM);
+            return route;
         }
+        return null;
+    }
+
+    @Nullable
+    public IRoute getRoute(Intent intent) {
+        if (hasRoute(intent)) {
+            IRoute route = intent.getParcelableExtra(ROUTE_PARAM);
+            intent.removeExtra(ROUTE_PARAM);
+            return route;
+        }
+        return null;
     }
 
     public abstract String[] getSchemes();
@@ -242,5 +258,15 @@ public abstract class AbsRouterManager {
     public abstract boolean hasAliveActivity();
 
     public abstract String[] getDefaultToken();
+
+
+    private URI makeURI(String action) {
+        try {
+            return URI.create(action);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
 
 }
