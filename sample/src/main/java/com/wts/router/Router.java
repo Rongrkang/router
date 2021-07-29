@@ -57,16 +57,20 @@ public final class Router {
         return mManager.makeRoute(ui, params);
     }
 
-    public void addRootRoute(Intent src, Intent dest) {
-        mManager.addRootRoute(src, dest);
+    public void replaceTargetIntent(Intent src, Intent dest) {
+        mManager.replaceTargetIntent(src, dest);
     }
 
-    public Intent getAndRemoveRootRoute(Intent intent) {
-        return mManager.getAndRemoveRootRoute(intent);
+    public Intent getTargetIntent(Intent intent) {
+        return mManager.getTargetIntent(intent);
     }
 
-    public IRoute getAndRemoveRouteParam(Bundle bundle) {
-        return mManager.getAndRemoveRouteParam(bundle);
+    public IRoute getRoute(Bundle bundle) {
+        return mManager.getRoute(bundle);
+    }
+
+    public IRoute getRoute(Intent intent) {
+        return mManager.getRoute(intent);
     }
 
     public String getRouteHost(Intent intent) {
