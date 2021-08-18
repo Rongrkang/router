@@ -47,13 +47,13 @@ public abstract class AbsRouterManager {
         if (intent != null) {
             Intent startIntent;
             IRoute router = intent.getParcelableExtra(ROUTE_PARAM);
-            if (router.getPosition().length == 0) {
+            if (router != null && router.getPosition().length == 0) {
                 intent.removeExtra(ROUTE_PARAM);
                 Bundle args = router.toParamBundle();
                 intent.putExtras(args);
             }
 
-            if (!router.isRoot()) {
+            if (router != null && !router.isRoot()) {
                 if (!hasAliveActivity()) {
                     startIntent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
                     if (startIntent != null) {

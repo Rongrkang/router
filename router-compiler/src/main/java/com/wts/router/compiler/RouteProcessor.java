@@ -62,9 +62,14 @@ public class RouteProcessor extends AbstractProcessor {
 
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
-        processRoute(roundEnv);
+        if (!roundEnv.errorRaised() && !roundEnv.processingOver()) {
+            processRound(annotations, roundEnv);
+        }
+        return false;
+    }
 
-        mMessager.printMessage(Diagnostic.Kind.NOTE, "1111111111111111111111");
+    private void processRound(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+        processRoute(roundEnv);
 
         final String currentPackageName = Route.class.getPackage().getName();
         ClassName typeIRouteFilter = ClassName.get(currentPackageName, "IRouteTree");
@@ -190,18 +195,16 @@ public class RouteProcessor extends AbstractProcessor {
                 .addMethod(matchesMethod)
                 .build();
 
-
         //设置JavaFile
         JavaFile javaFile = JavaFile.builder(currentPackageName, typeSpec).build();
         try {
             javaFile.writeTo(mFiler);// 写入
         } catch (IOException ignored) {
         }
-        return false;
     }
 
+
     private void processRoute(RoundEnvironment roundEnv) {
-        mRoutes.clear();
         HashMap<String, String> deRepetition = new HashMap<>();
         TypeMirror activity = mElements.getTypeElement("android.app.Activity").asType();
         TypeMirror fragment = mElements.getTypeElement("androidx.fragment.app.Fragment").asType();
