@@ -89,7 +89,7 @@ public abstract class AbsRouterManager {
         if (url.length() == 0) {
             return null;
         }
-        int si = url.indexOf("://");
+        int si = url.indexOf(":");
         if (si <= 0) {
             return null;
         }
