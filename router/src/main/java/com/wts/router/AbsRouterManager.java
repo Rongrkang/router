@@ -215,8 +215,9 @@ public abstract class AbsRouterManager {
     @Nullable
     public Intent getTargetIntent(Intent intent) {
         if (hasTargetIntent(intent)) {
+            Intent result = intent.getParcelableExtra(ROOT_SHORTCUT_PARAM);
             intent.removeExtra(ROOT_SHORTCUT_PARAM);
-            return intent.getParcelableExtra(ROOT_SHORTCUT_PARAM);
+            return result;
         }
         return null;
     }
