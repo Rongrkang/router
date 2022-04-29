@@ -76,4 +76,5 @@ public final class Router {
     public String getRouteHost(Intent intent) {
         return intent.getStringExtra(ROUTE_HOST);
     }
+
 }

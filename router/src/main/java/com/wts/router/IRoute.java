@@ -29,11 +29,16 @@ public interface IRoute extends Cloneable, Parcelable {
 
     IRoute appendParam(String key, String value);
 
+    IRoute appendParam(String key, String value, Class<? extends ParamTyped> typed);
+
     IRoute appendParam(@Nullable String param);
 
     String toAction();
 
+//    @NonNull
+//    Bundle toParamBundle();
+
     @NonNull
-    Bundle toParamBundle();
+    Bundle toParamBundle(@Nullable Bundle activityIntent);
 
 }

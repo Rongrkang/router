@@ -1,34 +1,44 @@
 package com.wts.router;
 
+import static com.wts.router.BaseRouter.ROUTE_EXTRA_PARAM;
+
+import android.os.Binder;
 import android.os.Bundle;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.text.TextUtils;
+import android.util.ArrayMap;
+import android.util.Size;
+import android.util.SizeF;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
+import java.io.Serializable;
+import java.io.UnsupportedEncodingException;
+import java.lang.reflect.Constructor;
 import java.net.URI;
 import java.net.URL;
+import java.net.URLDecoder;
 import java.net.URLEncoder;
+import java.util.ArrayList;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
-import static com.wts.router.BaseRouter.parserQuery;
 
 final class RouteImpl implements IRoute, Parcelable {
 
     private final String scheme;
     private final String host;
-    private String param;
     private final String attach;
     private final String self;
     private final int[] position;
     private final boolean root;
 
+    private String param;
+    private ArrayMap<String, String> paramTyped;
+
     RouteImpl(String scheme, String host, String param,
               String self, String attach, int[] position,
-              boolean root) {
+              boolean root, ArrayMap<String, String> paramTyped) {
         this.scheme = scheme;
         this.host = host;
         this.param = param;
@@ -36,6 +46,7 @@ final class RouteImpl implements IRoute, Parcelable {
         this.self = self;
         this.position = position;
         this.root = root;
+        this.paramTyped = paramTyped;
     }
 
     private RouteImpl(RouteImpl routeImpl) {
@@ -44,8 +55,18 @@ final class RouteImpl implements IRoute, Parcelable {
         this.param = routeImpl.param;
         this.attach = routeImpl.attach;
         this.self = routeImpl.self;
-        this.position = routeImpl.position;
+        if (routeImpl.position != null) {
+            this.position = new int[routeImpl.position.length];
+            if (this.position.length > 0) {
+                System.arraycopy(routeImpl.position, 0, this.position, 0, this.position.length);
+            }
+        } else {
+            this.position = null;
+        }
         this.root = routeImpl.root;
+        if (routeImpl.paramTyped != null) {
+            this.paramTyped = new ArrayMap<>(routeImpl.paramTyped);
+        }
     }
 
     @Override
@@ -83,7 +104,17 @@ final class RouteImpl implements IRoute, Parcelable {
     }
 
     @Override
-    public RouteImpl appendParam(String key, String value) {
+    public RouteImpl appendParam(String param) {
+        if (TextUtils.isEmpty(this.param)) {
+            this.param += param;
+        } else {
+            this.param += ("&" + param);
+        }
+        return this;
+    }
+
+    @Override
+    public IRoute appendParam(String key, String value) {
         if (TextUtils.isEmpty(param)) {
             this.param += (key + "=" + URLEncoder.encode(value));
         } else {
@@ -93,13 +124,17 @@ final class RouteImpl implements IRoute, Parcelable {
     }
 
     @Override
-    public RouteImpl appendParam(String param) {
-        if (TextUtils.isEmpty(this.param)) {
-            this.param += param;
-        } else {
-            this.param += ("&" + param);
-        }
+    public IRoute appendParam(String key, String value, Class<? extends ParamTyped> typed) {
+        this.appendParam(key, value);
+        addParamTyped(key, typed);
         return this;
+    }
+
+    private void addParamTyped(String key, Class<? extends ParamTyped> typed) {
+        if (this.paramTyped == null) {
+            this.paramTyped = new ArrayMap<>();
+        }
+        this.paramTyped.put(key, typed.getName());
     }
 
     public void writeToParcel(Parcel out, int flags) {
@@ -110,6 +145,13 @@ final class RouteImpl implements IRoute, Parcelable {
         out.writeString(self);
         out.writeIntArray(position);
         out.writeByte((byte) (root ? 1 : 0));
+        if (paramTyped == null) {
+            out.writeStringList(null);
+            out.writeStringList(null);
+        } else {
+            out.writeStringList(new ArrayList<>(paramTyped.keySet()));
+            out.writeStringList(new ArrayList<>(paramTyped.values()));
+        }
     }
 
     public static final Creator<RouteImpl> CREATOR = new Creator<RouteImpl>() {
@@ -122,8 +164,19 @@ final class RouteImpl implements IRoute, Parcelable {
             final String self = in.readString();
             int[] route = in.createIntArray();
             final boolean isRoot = in.readByte() != 0;
-            RouteImpl routeImpl = new RouteImpl(scheme, host, param, attach, self, route, isRoot);
-            return routeImpl;
+
+            ArrayMap<String, String> paramTyped = null;
+
+            ArrayList<String> paramTypedKey = in.createStringArrayList();
+            ArrayList<String> paramTypedValue = in.createStringArrayList();
+            if (paramTypedKey != null && paramTypedValue != null) {
+                paramTyped = new ArrayMap<>();
+                for (int i = 0; i < paramTypedKey.size(); i++) {
+                    paramTyped.put(paramTypedKey.get(i), paramTypedValue.get(i));
+                }
+            }
+
+            return new RouteImpl(scheme, host, param, attach, self, route, isRoot, paramTyped);
         }
 
         public RouteImpl[] newArray(int size) {
@@ -138,11 +191,7 @@ final class RouteImpl implements IRoute, Parcelable {
     @Override
     @NonNull
     public IRoute clone() {
-        try {
-            return (IRoute) super.clone();
-        } catch (CloneNotSupportedException ex) {
-            throw new RuntimeException(ex);
-        }
+        return new RouteImpl(this);
     }
 
     @Override
@@ -156,146 +205,179 @@ final class RouteImpl implements IRoute, Parcelable {
     }
 
     @NonNull
-    @Override
     public Bundle toParamBundle() {
         Bundle args = new Bundle();
         args.putString(ROUTE_HOST, host);
         String param = this.param;
-        try {
-            Map<String, String> defParams = parserQuery(param);
-            for (String str : defParams.keySet()) {
-                parseAndPutParams(args, str, defParams.get(str));
+        Map<String, String> params = parserQuery(param);
+        for (String key : params.keySet()) {
+            if (this.paramTyped != null && this.paramTyped.size() > 0) {
+                putParams(args, key, params.get(key), this.paramTyped);
+            } else {
+                args.putString(key, params.get(key));
             }
-        } catch (Exception ignored) {
         }
         return args;
     }
 
-    private static int parseInt(String text) throws NumberFormatException {
-        return Integer.parseInt(text);
-    }
-
-    private static boolean parseBoolean(String text) {
-        if (!"true".equalsIgnoreCase(text) && !"false".equalsIgnoreCase(text)) {
-            throw new RuntimeException();
+    @NonNull
+    @Override
+    public Bundle toParamBundle(@Nullable Bundle params) {
+        Bundle args = toParamBundle();
+        if (params != null && params.containsKey(ROUTE_EXTRA_PARAM)) {
+            Bundle extra = params.getBundle(ROUTE_EXTRA_PARAM);
+            params.remove(ROUTE_EXTRA_PARAM);
+            if (extra != null) {
+                args.putAll(extra);
+            }
         }
-        return Boolean.parseBoolean(text);
+        return args;
     }
 
-    private static short parseShort(String text) throws NumberFormatException {
-        return Short.parseShort(text);
-    }
-
-    private static long parseLong(String text) throws NumberFormatException {
-        return Long.parseLong(text);
-    }
-
-    private static float parseFloat(String text) throws NumberFormatException {
-        return Float.parseFloat(text);
-    }
-
-    private static double parseDouble(String text) throws NumberFormatException {
-        return Double.parseDouble(text);
-    }
-
-    private static byte parseByte(String text) throws NumberFormatException {
-        return Byte.parseByte(text);
-    }
-
-    static void parseAndPutParams(Bundle bundle, String key, String param) {
+    static Map<String, String> parserQuery(String query) {
+        ArrayMap<String, String> map = new ArrayMap<>();
         try {
-            Pattern pattern = getParamPattern();
-            Matcher matcher = pattern.matcher(param);
-            if (matcher.find()) {
-                final String value = param.substring(param.indexOf(")") + 1);
-                final String defValue = bundle.getString(key);
-                if (defValue == null) {
-                    bundle.remove(key);
-                }
-                if (param.startsWith("(byte)")) {
-                    byte pv = parseByte(value);
+            if (!TextUtils.isEmpty(query)) {
+                String[] split = query.split("&");
+                for (String str : split) {
+                    if (!str.contains("=")) {
+                        continue;
+                    }
+                    int index = str.indexOf("=");
+                    String value = str.length() >= index + 1 ? str.substring(index + 1) : "";
+                    String key = str.substring(0, index);
                     try {
-                        bundle.putByte(key, parseByte(defValue));
-                    } catch (Exception ex) {
-                        bundle.putByte(key, pv);
+                        value = URLDecoder.decode(value, "UTF-8");
+                    } catch (UnsupportedEncodingException e) {
+                        //nothing
                     }
-                } else if (param.startsWith("(short)")) {
-                    short pv = parseShort(value);
-                    try {
-                        bundle.putShort(key, parseShort(defValue));
-                    } catch (Exception ex) {
-                        bundle.putShort(key, pv);
-                    }
-                } else if (param.startsWith("(int)")) {
-                    int pv = parseInt(value);
-                    try {
-                        bundle.putInt(key, parseInt(defValue));
-                    } catch (Exception ex) {
-                        bundle.putInt(key, pv);
-                    }
-                } else if (param.startsWith("(long)")) {
-                    long pv = parseLong(value);
-                    try {
-                        bundle.putLong(key, parseLong(defValue));
-                    } catch (Exception ex) {
-                        bundle.putLong(key, pv);
-                    }
-                } else if (param.startsWith("(float)")) {
-                    float pv = parseFloat(value);
-                    try {
-                        bundle.putFloat(key, parseFloat(defValue));
-                    } catch (Exception ex) {
-                        bundle.putFloat(key, pv);
-                    }
-                } else if (param.startsWith("(double)")) {
-                    double pv = parseDouble(value);
-                    try {
-                        bundle.putDouble(key, parseDouble(defValue));
-                    } catch (Exception ex) {
-                        bundle.putDouble(key, pv);
-                    }
-                } else if (param.startsWith("(boolean)")) {
-                    boolean pv = parseBoolean(value);
-                    try {
-                        bundle.putBoolean(key, parseBoolean(defValue));
-                    } catch (Exception ex) {
-                        bundle.putBoolean(key, pv);
-                    }
-                } else if (param.startsWith("(String)")) {
-                    if (!bundle.containsKey(key)) {
-                        bundle.putString(key, value);
-                    }
-                }
-            } else {
-                if (!bundle.containsKey(key)) {
-                    bundle.putString(key, param);
+                    map.put(key, value);
                 }
             }
         } catch (Exception ex) {
             ex.printStackTrace();
-            if (!bundle.containsKey(key)) {
-                bundle.putString(key, param);
+        }
+        return map;
+    }
+
+    static void putParams(Bundle bundle, String key, String value, Map<String, String> paramTyped) {
+        try {
+            String typedName = paramTyped.get(key);
+            if (TextUtils.isEmpty(typedName)) {
+                bundle.putString(key, value);
+            } else {
+                Param param = new Param(key, value, typedName);
+                Object typedValue = param.getValue();
+                if (param.getType().isArray()) {
+                    if (param.getType() == String[].class) {
+                        bundle.putStringArray(param.getKey(), (String[]) typedValue);
+                    } else if (param.getType() == int[].class) {
+                        bundle.putIntArray(param.getKey(), (int[]) typedValue);
+                    } else if (param.getType() == boolean[].class) {
+                        bundle.putBooleanArray(param.getKey(), (boolean[]) typedValue);
+                    } else if (param.getType() == long[].class) {
+                        bundle.putLongArray(param.getKey(), (long[]) typedValue);
+                    } else if (param.getType() == double[].class) {
+                        bundle.putDoubleArray(param.getKey(), (double[]) typedValue);
+                    } else if (param.getType() == float[].class) {
+                        bundle.putFloatArray(param.getKey(), (float[]) typedValue);
+                    } else if (param.getType() == short[].class) {
+                        bundle.putShortArray(param.getKey(), (short[]) typedValue);
+                    } else if (param.getType() == byte[].class) {
+                        bundle.putByteArray(param.getKey(), (byte[]) typedValue);
+                    } else if (param.getType() == char[].class) {
+                        bundle.putCharArray(param.getKey(), (char[]) typedValue);
+                    } else if (param.getType() == CharSequence[].class) {
+                        bundle.putCharSequenceArray(param.getKey(), (CharSequence[]) typedValue);
+                    } else if (Parcelable[].class.isAssignableFrom(param.getType())) {
+                        bundle.putParcelableArray(param.getKey(), (Parcelable[]) typedValue);
+                    }
+                } else {
+                    if (param.getType() == String.class) {
+                        bundle.putString(param.getKey(), (String) typedValue);
+                    } else if (param.getType() == int.class || param.getType() == Integer.class) {
+                        bundle.putInt(param.getKey(), (int) typedValue);
+                    } else if (param.getType() == boolean.class || param.getType() == Boolean.class) {
+                        bundle.putBoolean(param.getKey(), (boolean) typedValue);
+                    } else if (param.getType() == long.class || param.getType() == Long.class) {
+                        bundle.putLong(param.getKey(), (Long) typedValue);
+                    } else if (param.getType() == double.class || param.getType() == Double.class) {
+                        bundle.putDouble(param.getKey(), (Double) typedValue);
+                    } else if (param.getType() == float.class || param.getType() == Float.class) {
+                        bundle.putFloat(param.getKey(), (Float) typedValue);
+                    } else if (param.getType() == short.class || param.getType() == Short.class) {
+                        bundle.putShort(param.getKey(), (Short) typedValue);
+                    } else if (param.getType() == byte.class || param.getType() == Byte.class) {
+                        bundle.putByte(param.getKey(), (Byte) typedValue);
+                    } else if (param.getType() == char.class || param.getType() == Character.class) {
+                        bundle.putChar(param.getKey(), (Character) typedValue);
+                    } else if (param.getType() == CharSequence.class) {
+                        bundle.putCharSequence(param.getKey(), (CharSequence) typedValue);
+                    } else if (param.getType() == Size.class) {
+                        bundle.putSize(param.getKey(), (Size) typedValue);
+                    } else if (param.getType() == SizeF.class) {
+                        bundle.putSizeF(param.getKey(), (SizeF) typedValue);
+                    } else if (param.getType() == Bundle.class) {
+                        bundle.putBundle(param.getKey(), (Bundle) typedValue);
+                    } else if (param.getType() == Binder.class) {
+                        bundle.putBinder(param.getKey(), (Binder) typedValue);
+                    } else if (Parcelable.class.isAssignableFrom(param.getType())) {
+                        bundle.putParcelable(param.getKey(), (Parcelable) typedValue);
+                    } else if (Serializable.class.isAssignableFrom(param.getType())) {
+                        bundle.putSerializable(param.getKey(), (Serializable) typedValue);
+                    }
+                }
             }
+        } catch (Exception ex) {
+            ex.printStackTrace();
         }
     }
 
-    private static Pattern mParamPattern;
+    private static class Param {
 
-    private static Pattern getParamPattern() {
-        synchronized (RouteImpl.class) {
-            if (mParamPattern == null) {
-                String regex = "(^\\(byte\\)[-]?[0-9]{1,2}$)|" +
-                        "(^\\(short\\)[-]?[0-9]{1,4}$)|" +
-                        "(^\\(int\\)[-]?[0-9]+$)|" +
-                        "(^\\(long\\)[-]?[0-9]+$)|" +
-                        "(^\\(float\\)[-]?[0-9]+([.]{1}[0-9]+){0,1}$)|" +
-                        "(^\\(double\\)[-]?[0-9]+([.]{1}[0-9]+){0,1}$)|" +
-                        "(^\\(boolean\\)(([tT][rR][uU][eE])|([fF][aA][lL][sS][eE]))$)|" +
-                        "(^\\(String\\))";
-                mParamPattern = Pattern.compile(regex);
-            }
-            return mParamPattern;
+        private final String key;
+        private final String value;
+        private final ParamTyped typed;
+
+        Param(String key, String value) {
+            this.key = key;
+            this.value = value;
+            this.typed = new ParamString(value);
         }
+
+        Param(String key, String value, String typed) {
+            this.key = key;
+            this.value = value;
+            Class<?> clazz = null;
+            try {
+                clazz = Class.forName(typed);
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+            if (clazz != null && ParamTyped.class.isAssignableFrom(clazz)) {
+                try {
+                    Constructor<?> constructor = clazz.getConstructor(String.class);
+                    this.typed = (ParamTyped) constructor.newInstance(value);
+                } catch (Exception ex) {
+                    throw new IllegalArgumentException(ex);
+                }
+            } else {
+                this.typed = new ParamString(value);
+            }
+        }
+
+        public final String getKey() {
+            return key;
+        }
+
+        public final Class<?> getType() {
+            return typed.getType();
+        }
+
+        public final Object getValue() {
+            return typed.getValue();
+        }
+
     }
 
     public static void main(String[] args) {

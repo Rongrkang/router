@@ -27,7 +27,7 @@ public interface IRouteTree {
             try {
                 return (IRouteTree) Class.forName("com.wts.router.RouteTree").newInstance();
             } catch (Exception ex) {
-                return null;
+                throw new RuntimeException(ex);
             }
         }
     }

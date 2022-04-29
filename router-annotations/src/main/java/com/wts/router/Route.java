@@ -13,11 +13,15 @@ public @interface Route {
 
     String[] host();
 
-    String attach();
+    Class<?> attach() default Void.class;
 
     int[] position() default {};
 
     String[] param() default {};
+
+    String[] paramKey() default {};
+
+    Class<?>[] paramTyped() default {};
 
     boolean root() default false;
 

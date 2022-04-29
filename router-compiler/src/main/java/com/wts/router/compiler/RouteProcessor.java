@@ -9,6 +9,15 @@ import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
+import com.wts.router.ParamBoolean;
+import com.wts.router.ParamByte;
+import com.wts.router.ParamDouble;
+import com.wts.router.ParamFloat;
+import com.wts.router.ParamInt;
+import com.wts.router.ParamLong;
+import com.wts.router.ParamShort;
+import com.wts.router.ParamString;
+import com.wts.router.ParamTyped;
 import com.wts.router.Route;
 
 import net.ltgt.gradle.incap.IncrementalAnnotationProcessor;
@@ -21,7 +30,9 @@ import java.net.URI;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -34,8 +45,11 @@ import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.MirroredTypeException;
+import javax.lang.model.type.MirroredTypesException;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
@@ -76,16 +90,19 @@ public class RouteProcessor extends AbstractProcessor {
         ClassName typeRouteImpl = ClassName.get(currentPackageName, "RouteImpl");
         ClassName typeIRoute = ClassName.get(currentPackageName, "IRoute");
         ClassName typeTextUtils = ClassName.get("android.text", "TextUtils");
-        ClassName typeHashMap = ClassName.get(HashMap.class);
-        TypeName mapTypeName = ParameterizedTypeName.get(typeHashMap, ClassName.get(String.class), typeIRoute);
+        ClassName typeHashMap = ClassName.get(LinkedHashMap.class);
+        ClassName typeArrayMap = ClassName.get("android.util", "ArrayMap");
         ClassName typeSet = ClassName.get(Set.class);
+
+        TypeName mapTypeName = ParameterizedTypeName.get(typeHashMap, ClassName.get(String.class), typeIRoute);
         TypeName setTypeName = ParameterizedTypeName.get(typeSet, ClassName.get(String.class));
         TypeName stringArray = ParameterizedTypeName.get(String[].class);
+        TypeName arrayMap = ParameterizedTypeName.get(typeArrayMap, ClassName.get(String.class), ClassName.get(String.class));
 
         FieldSpec mTreeField = FieldSpec.builder(mapTypeName, "mTree", Modifier.PRIVATE, Modifier.TRANSIENT).build();
 
         MethodSpec.Builder initBuilder = MethodSpec.methodBuilder("init").addModifiers(Modifier.PRIVATE);
-        int routerSize = makeRouter(initBuilder, typeRouteImpl);
+        int routerSize = makeRouter(initBuilder, typeRouteImpl, arrayMap);
         MethodSpec initMethod = initBuilder.build();
 
         MethodSpec flux = MethodSpec.constructorBuilder()
@@ -208,6 +225,7 @@ public class RouteProcessor extends AbstractProcessor {
         HashMap<String, String> deRepetition = new HashMap<>();
         TypeMirror activity = mElements.getTypeElement("android.app.Activity").asType();
         TypeMirror fragment = mElements.getTypeElement("androidx.fragment.app.Fragment").asType();
+        TypeMirror Void = mElements.getTypeElement("java.lang.Void").asType();
         for (Element element : roundEnv.getElementsAnnotatedWith(Route.class)) {
             TypeElement typeElement = (TypeElement) element;
             //获取className (com.wtsbxw.wts.ui.activities.MainActivity)
@@ -223,9 +241,11 @@ public class RouteProcessor extends AbstractProcessor {
 
             Route route = element.getAnnotation(Route.class);
 
+            TypeMirror attach = getAttach(route);
+
             if (mTypes.isSubtype(typeMirror, activity)) {//activity
-                if (!"*".equals(route.attach())) {
-                    throw new IllegalArgumentException(name + " attach must be '*'.");
+                if (!mTypes.isSameType(attach, Void)) {
+                    throw new IllegalArgumentException(name + " attach must be 'Void.class'.");
                 }
                 if (route.position().length > 0) {
                     throw new IllegalArgumentException(name + " position length must be 0.");
@@ -235,9 +255,8 @@ public class RouteProcessor extends AbstractProcessor {
                     throw new IllegalArgumentException(name + " position length must be > 0.");
                 }
 
-                String pwd = mElements.getPackageOf(element).asType().toString();
 
-                String clazz = toAbsoluteFile(route.attach(), pwd);
+                String clazz = attach.toString();
 
                 TypeElement attachElement = mElements.getTypeElement(clazz);
                 if (attachElement == null) {
@@ -264,7 +283,9 @@ public class RouteProcessor extends AbstractProcessor {
         }
     }
 
-    private int makeRouter(MethodSpec.Builder builder, ClassName router) {
+    private int makeRouter(MethodSpec.Builder builder, ClassName router, TypeName map) {
+        TypeMirror paramTypedTypeMirror = mElements.getTypeElement(ParamTyped.class.getName()).asType();
+
         int i = 0;
         for (String name : mRoutes.keySet()) {
             Route route = mRoutes.get(name);
@@ -275,14 +296,19 @@ public class RouteProcessor extends AbstractProcessor {
             final int[] position = route.position();
             final boolean root = route.root();
 
-            String attach = route.attach();
+            String[] paramKey = route.paramKey();
+            List<? extends TypeMirror> paramTyped = getParamTyped(route);
+            if (paramKey.length != paramTyped.size()) {
+                throw new IllegalArgumentException(name + " paramKey length must be equal to paramTyped length.");
+            }
 
-            if ("*".equals(attach)) {//activity
+            TypeMirror attachType = getAttach(route);
+            String attach;
+
+            if ("java.lang.Void".equals(attachType.toString())) {//activity
                 attach = name;
             } else {//fragment
-                TypeElement element = mElements.getTypeElement(name);
-                String pwd = mElements.getPackageOf(element).asType().toString();
-                attach = toAbsoluteFile(attach, pwd);
+                attach = attachType.toString();
             }
 
             for (int p = 0; p < hosts.length; p++) {
@@ -295,12 +321,78 @@ public class RouteProcessor extends AbstractProcessor {
                         param = params[p];
                     }
 
-                    builder.addStatement("int[] value$L = new int[$L]", i, position.length);
-                    for (int j = 0; j < position.length; j++) {
-                        builder.addStatement("value$L[$L] = $L", i, j, position[j]);
+                    if (position.length > 0) {
+                        builder.addStatement("int[] value$L = new int[$L]", i, position.length);
+                        for (int j = 0; j < position.length; j++) {
+                            builder.addStatement("value$L[$L] = $L", i, j, position[j]);
+                        }
                     }
-                    builder.addStatement("this.$N.put($S,new $T($S,$S,$S,$S,$S,value$L,$L))", "mTree", scheme.toLowerCase() + ":" + host.toLowerCase(),
-                            router, scheme, host, param, name, attach, i, root);
+
+                    if (paramKey.length > 0) {
+                        builder.addStatement("$T paramTyped$L = new $T($L)", map, i, map, paramKey.length);
+                        for (int j = 0; j < paramKey.length; j++) {
+                            TypeMirror typeMirror = paramTyped.get(j);
+                            String paramTypedName = typeMirror.toString();
+
+                            TypeElement typeElement = mElements.getTypeElement(paramTypedName);
+                            TypeMirror paramTypeMirror = null;
+                            if (typeElement != null) {
+                                paramTypeMirror = typeElement.asType();
+                            }
+
+                            if (paramTypeMirror != null && mTypes.isSubtype(paramTypeMirror, paramTypedTypeMirror)) {
+                                Element element = mTypes.asElement(typeMirror);
+                                Set<Modifier> modifiers = element.getModifiers();
+                                boolean publicClazz = false;
+                                for (Modifier modifier : modifiers) {
+                                    if (modifier == Modifier.ABSTRACT) {
+                                        throw new IllegalArgumentException(name + " paramTyped element " + paramTypedName + " cannot be an abstract class.");
+                                    } else if (modifier == Modifier.PUBLIC) {
+                                        publicClazz = true;
+                                    }
+                                }
+                                if (!publicClazz) {
+                                    throw new IllegalArgumentException(name + " paramTyped element " + paramTypedName + " must be a public class.");
+                                }
+                            } else {
+                                if ("int".equals(paramTypedName)) {
+                                    paramTypedName = ParamInt.class.getName();
+                                } else if ("java.lang.String".equals(paramTypedName)) {
+                                    paramTypedName = ParamString.class.getName();
+                                } else if ("boolean".equals(paramTypedName)) {
+                                    paramTypedName = ParamBoolean.class.getName();
+                                } else if ("double".equals(paramTypedName)) {
+                                    paramTypedName = ParamDouble.class.getName();
+                                } else if ("float".equals(paramTypedName)) {
+                                    paramTypedName = ParamFloat.class.getName();
+                                } else if ("long".equals(paramTypedName)) {
+                                    paramTypedName = ParamLong.class.getName();
+                                } else if ("byte".equals(paramTypedName)) {
+                                    paramTypedName = ParamByte.class.getName();
+                                } else if ("short".equals(paramTypedName)) {
+                                    paramTypedName = ParamShort.class.getName();
+                                } else {
+                                    throw new IllegalArgumentException(name + " paramTyped element must " +
+                                            "be com.wts.router.ParamTyped subclass, " +
+                                            "byte.class, short.class, " +
+                                            "int.class, String.class, boolean.class, float.class or long.class.");
+                                }
+                            }
+
+
+                            builder.addStatement("paramTyped$L.put($S,$L)", i, paramKey[j], paramTypedName + ".class.getName()");
+                        }
+                    }
+
+                    builder.addStatement("this.$N.put($S,new $T($S,$S,$S,$L,$S,$L,$L,$L))",
+                            "mTree",
+                            scheme.toLowerCase() + ":" + host.toLowerCase(),
+                            router, scheme, host, param,
+                            name + ".class.getName()",
+                            attach,
+                            position.length > 0 ? "value" + i : null,
+                            root,
+                            paramKey.length > 0 ? "paramTyped" + i : null);
                     i++;
                 }
             }
@@ -318,6 +410,24 @@ public class RouteProcessor extends AbstractProcessor {
         Set<String> types = new LinkedHashSet<>();
         types.add(Route.class.getCanonicalName());// 声明使用的注解
         return types;
+    }
+
+    private static List<? extends TypeMirror> getParamTyped(Route route) {
+        try {
+            route.paramTyped(); // this should throw
+        } catch (MirroredTypesException mte) {
+            return mte.getTypeMirrors();
+        }
+        throw new RuntimeException(); // can this never happen ??
+    }
+
+    private static TypeMirror getAttach(Route route) {
+        try {
+            route.attach(); // this should throw
+        } catch (MirroredTypeException mte) {
+            return mte.getTypeMirror();
+        }
+        throw new RuntimeException(); // can this never happen ??
     }
 
     /**

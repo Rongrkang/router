@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static com.wts.router.BaseRouter.ROUTE_EXTRA_PARAM;
 import static com.wts.router.BaseRouter.ROUTE_PARAM;
 
 public abstract class AbsRouterManager {
@@ -47,9 +48,9 @@ public abstract class AbsRouterManager {
         if (intent != null) {
             Intent startIntent;
             IRoute router = intent.getParcelableExtra(ROUTE_PARAM);
-            if (router != null && router.getPosition().length == 0) {
+            if (router != null && (router.getPosition() == null || router.getPosition().length == 0)) {
                 intent.removeExtra(ROUTE_PARAM);
-                Bundle args = router.toParamBundle();
+                Bundle args = router.toParamBundle(intent.getExtras());
                 intent.putExtras(args);
             }
 
@@ -108,12 +109,8 @@ public abstract class AbsRouterManager {
         //step 2:让那些不能转化URI的先执行一遍如果可以返回Intent就不继续执行了
         for (BaseRouter routerScheme : mRouterScheme) {
             if (!Arrays.asList(routerScheme.getScheme()).contains(s)) continue;
-            Intent intent = routerScheme.getIntent(context, url);
+            Intent intent = routerScheme.getIntent(context, url, params);
             if (intent != null) {
-                if (params != null) {
-                    intent.putExtras(params);
-                    intent.setFlags(params.getFlags());
-                }
                 return intent;
             }
         }
@@ -123,12 +120,7 @@ public abstract class AbsRouterManager {
         if (uri == null) return null;
         for (BaseRouter routerScheme : mRouterScheme) {
             if (!routerScheme.filter(uri)) continue;
-            Intent intent = routerScheme.getIntent(context, uri);
-            if (params != null) {
-                intent.putExtras(params);
-                intent.setFlags(params.getFlags());
-            }
-            return intent;
+            return routerScheme.getIntent(context, uri, params);
         }
         Intent intent = getErrorIntent(context);
         if (intent != null) {
@@ -155,7 +147,7 @@ public abstract class AbsRouterManager {
 
         for (BaseRouter routerScheme : mRouterScheme) {
             if (!routerScheme.filter(router)) continue;
-            return routerScheme.getIntent(context, router);
+            return routerScheme.getIntent(context, router, null);
         }
         return null;
     }
@@ -188,7 +180,7 @@ public abstract class AbsRouterManager {
                 routers.add(iRoute.appendParam(builder.toString()));
             }
         }
-        return routers.toArray(new IRoute[routers.size()]);
+        return routers.toArray(new IRoute[0]);
     }
 
     protected void addRouter(BaseRouter router) {
