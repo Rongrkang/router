@@ -1,7 +1,5 @@
 package com.wts.router;
 
-import static com.wts.router.BaseRouter.ROUTE_EXTRA_PARAM;
-
 import android.os.Binder;
 import android.os.Bundle;
 import android.os.Parcel;
@@ -207,7 +205,6 @@ final class RouteImpl implements IRoute, Parcelable {
     @NonNull
     public Bundle toParamBundle() {
         Bundle args = new Bundle();
-        args.putString(ROUTE_HOST, host);
         String param = this.param;
         Map<String, String> params = parserQuery(param);
         for (String key : params.keySet()) {
@@ -220,19 +217,19 @@ final class RouteImpl implements IRoute, Parcelable {
         return args;
     }
 
-    @NonNull
-    @Override
-    public Bundle toParamBundle(@Nullable Bundle params) {
-        Bundle args = toParamBundle();
-        if (params != null && params.containsKey(ROUTE_EXTRA_PARAM)) {
-            Bundle extra = params.getBundle(ROUTE_EXTRA_PARAM);
-            params.remove(ROUTE_EXTRA_PARAM);
-            if (extra != null) {
-                args.putAll(extra);
-            }
-        }
-        return args;
-    }
+//    @NonNull
+//    @Override
+//    public Bundle toParamBundle(@Nullable Bundle params) {
+//        Bundle args = toParamBundle();
+//        if (params != null && params.containsKey(ROUTE_EXTRA_PARAM)) {
+//            Bundle extra = params.getBundle(ROUTE_EXTRA_PARAM);
+//            params.remove(ROUTE_EXTRA_PARAM);
+//            if (extra != null) {
+//                args.putAll(extra);
+//            }
+//        }
+//        return args;
+//    }
 
     static Map<String, String> parserQuery(String query) {
         ArrayMap<String, String> map = new ArrayMap<>();

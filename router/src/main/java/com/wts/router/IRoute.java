@@ -8,8 +8,6 @@ import androidx.annotation.Nullable;
 
 public interface IRoute extends Cloneable, Parcelable {
 
-    String ROUTE_HOST = "route_host";
-
     String getScheme();
 
     String getHost();
@@ -35,10 +33,10 @@ public interface IRoute extends Cloneable, Parcelable {
 
     String toAction();
 
-//    @NonNull
-//    Bundle toParamBundle();
-
     @NonNull
-    Bundle toParamBundle(@Nullable Bundle activityIntent);
+    Bundle toParamBundle();
+
+//    @NonNull
+//    Bundle toParamBundle(@Nullable Bundle activityIntent);
 
 }

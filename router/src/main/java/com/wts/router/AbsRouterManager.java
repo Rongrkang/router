@@ -1,6 +1,7 @@
 package com.wts.router;
 
 import android.app.Activity;
+import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
@@ -17,7 +18,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static com.wts.router.BaseRouter.ROUTE_EXTRA_PARAM;
 import static com.wts.router.BaseRouter.ROUTE_PARAM;
 
 public abstract class AbsRouterManager {
@@ -32,29 +32,35 @@ public abstract class AbsRouterManager {
         mRouterScheme = new ArrayList<>();
     }
 
-    public boolean open(Context context, String url, String... token) {
-        return open(context, makeIntent(context, url, token));
+    public boolean open(Context context, String url, int flags, String... token) {
+        Intent intent = makeIntent(context, url, token);
+        if (intent != null) {
+            intent.setFlags(flags);
+            return open(context, intent, null);
+        }
+        return false;
     }
 
-    public boolean open(Context context, IRoute router, String... token) {
-        return open(context, makeIntent(context, router, token));
+    public boolean open(Context context, IRoute route, int flags, String... token) {
+        Intent intent = makeIntent(context, route, token);
+        if (intent != null) {
+            intent.setFlags(flags);
+            return open(context, intent, null);
+        }
+        return false;
     }
 
-    public boolean open(Context context, String url, Intent params, String... token) {
-        return open(context, makeIntent(context, url, params, token));
-    }
-
-    private boolean open(Context context, Intent intent) {
+    public final boolean open(Context context, Intent intent, @Nullable Bundle options) {
         if (intent != null) {
             Intent startIntent;
-            IRoute router = intent.getParcelableExtra(ROUTE_PARAM);
-            if (router != null && (router.getPosition() == null || router.getPosition().length == 0)) {
+            IRoute route = intent.getParcelableExtra(ROUTE_PARAM);
+            if (route != null && (route.getPosition() == null || route.getPosition().length == 0)) {
                 intent.removeExtra(ROUTE_PARAM);
-                Bundle args = router.toParamBundle(intent.getExtras());
+                Bundle args = route.toParamBundle();
                 intent.putExtras(args);
             }
 
-            if (router != null && !router.isRoot()) {
+            if (route != null && !route.isRoot()) {
                 if (!hasAliveActivity()) {
                     startIntent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
                     if (startIntent != null) {
@@ -73,16 +79,16 @@ public abstract class AbsRouterManager {
                 startIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
             }
             try {
-                context.startActivity(startIntent);
+                context.startActivity(startIntent, options);
                 return true;
-            } catch (Exception ex) {
+            } catch (ActivityNotFoundException ex) {
                 ex.printStackTrace();
             }
         }
         return false;
     }
 
-    public Intent makeIntent(Context context, String url, Intent params, String... token) {
+    public final Intent makeIntent(Context context, String url, String... token) {
         if (url == null) {
             return null;
         }
@@ -109,7 +115,7 @@ public abstract class AbsRouterManager {
         //step 2:让那些不能转化URI的先执行一遍如果可以返回Intent就不继续执行了
         for (BaseRouter routerScheme : mRouterScheme) {
             if (!Arrays.asList(routerScheme.getScheme()).contains(s)) continue;
-            Intent intent = routerScheme.getIntent(context, url, params);
+            Intent intent = routerScheme.getIntent(context, url);
             if (intent != null) {
                 return intent;
             }
@@ -120,7 +126,7 @@ public abstract class AbsRouterManager {
         if (uri == null) return null;
         for (BaseRouter routerScheme : mRouterScheme) {
             if (!routerScheme.filter(uri)) continue;
-            return routerScheme.getIntent(context, uri, params);
+            return routerScheme.getIntent(context, uri);
         }
         Intent intent = getErrorIntent(context);
         if (intent != null) {
@@ -129,15 +135,15 @@ public abstract class AbsRouterManager {
         throw new RuntimeException("Not find error route.");
     }
 
-    public Intent makeIntent(Context context, IRoute router, String... token) {
-        if (router == null) return null;
+    public final Intent makeIntent(Context context, IRoute route, String... token) {
+        if (route == null) return null;
         if (token == null || token.length == 0) {
             token = getDefaultToken();
         }
 
         boolean checkCorrect = false;
         for (String scheme : token) {
-            if (router.getScheme().equalsIgnoreCase(scheme)) {
+            if (route.getScheme().equalsIgnoreCase(scheme)) {
                 checkCorrect = true;
                 break;
             }
@@ -146,17 +152,13 @@ public abstract class AbsRouterManager {
         if (!checkCorrect) return null;
 
         for (BaseRouter routerScheme : mRouterScheme) {
-            if (!routerScheme.filter(router)) continue;
-            return routerScheme.getIntent(context, router, null);
+            if (!routerScheme.filter(route)) continue;
+            return routerScheme.getIntent(context, route);
         }
         return null;
     }
 
-    public Intent makeIntent(Context context, String url, String... token) {
-        return makeIntent(context, url, null, token);
-    }
-
-    public IRoute[] makeRoute(Class<?> ui, Map<String, Object> params) {
+    public final IRoute[] makeRoute(Class<?> ui, @Nullable Map<String, Object> params) {
         if (ui == null) return null;
         String className = ui.getName();
         StringBuilder builder = new StringBuilder();

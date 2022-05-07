@@ -4,11 +4,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 
-import androidx.annotation.Nullable;
-
 import java.util.Map;
-
-import static com.wts.router.IRoute.ROUTE_HOST;
 
 public final class Router {
 
@@ -30,23 +26,27 @@ public final class Router {
     }
 
     public boolean open(Context context, String url, String... token) {
-        return mManager.open(context, url, token);
+        return mManager.open(context, url, 0, token);
+    }
+
+    public boolean open(Context context, String url, int flags, String... token) {
+        return mManager.open(context, url, flags, token);
     }
 
     public boolean open(Context context, IRoute route, String... token) {
-        return mManager.open(context, route, token);
+        return mManager.open(context, route, 0, token);
     }
 
-    public boolean open(Context context, String url, Intent params, String... token) {
-        return mManager.open(context, url, params, token);
+    public boolean open(Context context, IRoute route, int flags, String... token) {
+        return mManager.open(context, route, flags, token);
+    }
+
+    public boolean open(Context context, Intent intent) {
+        return mManager.open(context, intent, null);
     }
 
     public Intent makeIntent(Context context, String url) {
         return mManager.makeIntent(context, url);
-    }
-
-    public Intent makeIntent(Context context, String url, Intent params) {
-        return mManager.makeIntent(context, url, params);
     }
 
     public Intent makeIntent(Context context, IRoute route) {
@@ -71,10 +71,6 @@ public final class Router {
 
     public IRoute getRoute(Intent intent) {
         return mManager.getRoute(intent);
-    }
-
-    public String getRouteHost(Intent intent) {
-        return intent.getStringExtra(ROUTE_HOST);
     }
 
 }

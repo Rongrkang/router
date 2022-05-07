@@ -12,7 +12,6 @@ import java.net.URI;
 public abstract class BaseRouter implements Comparable<BaseRouter> {
 
     final static String ROUTE_PARAM = "route_shortcut_param";
-    final static String ROUTE_EXTRA_PARAM = "route_extra_shortcut_param";
 
     IRouteTree mTree;
 
@@ -31,31 +30,31 @@ public abstract class BaseRouter implements Comparable<BaseRouter> {
     public abstract String[] getScheme();
 
     @Nullable
-    public Intent getIntent(Context context, @Nullable String url, @Nullable Intent params) {
+    public Intent getIntent(Context context, @Nullable String url) {
         return null;
     }
 
     @NonNull
-    public Intent getIntent(Context context, @NonNull URI uri, @Nullable Intent params) {
-        IRoute router = mTree.get(uri.getScheme(), uri.getHost().toLowerCase());
+    public Intent getIntent(Context context, @NonNull URI uri) {
+        IRoute route = mTree.get(uri.getScheme(), uri.getHost().toLowerCase());
         String query = uri.getRawQuery();
         if (!TextUtils.isEmpty(query)) {
-            router.appendParam(query);
+            route.appendParam(query);
         }
-        return getIntent(context, router, params);
+        String fragment = uri.getFragment();
+        if (!TextUtils.isEmpty(fragment)) {
+            route.appendParam("#", fragment);
+        }
+        return getIntent(context, route);
     }
 
     @NonNull
-    public Intent getIntent(Context context, @NonNull IRoute router, @Nullable Intent params) {
+    public Intent getIntent(Context context, @NonNull IRoute route) {
         try {
             Intent intent = new Intent();
-            Class<?> clazz = Class.forName(router.getAttach());
+            Class<?> clazz = Class.forName(route.getAttach());
             intent.setClass(context, clazz);
-            intent.putExtra(ROUTE_PARAM, router);
-            if (params != null) {
-                intent.putExtra(ROUTE_EXTRA_PARAM, params.getExtras());
-                intent.setFlags(params.getFlags());
-            }
+            intent.putExtra(ROUTE_PARAM, route);
             return intent;
         } catch (ClassNotFoundException ex) {
             throw new RuntimeException(ex);
